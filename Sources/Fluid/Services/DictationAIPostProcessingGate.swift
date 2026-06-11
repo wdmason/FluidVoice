@@ -14,10 +14,7 @@ enum DictationAIPostProcessingGate {
         let settings = SettingsStore.shared
         guard settings.dictationPromptSelection(for: slot) != .off else { return false }
         if PrivateAIProviderPromptFormat.isAvailable(settings: settings) {
-            if PrivateAIIntegrationService.isLocalRuntimeConfigured {
-                return true
-            }
-            return self.isProviderConfigured()
+            return self.isPrivateProviderConfigured(settings: settings)
         }
         if let appBundleID,
            settings.promptRoutingScope(for: .dictate) == .selectedAppsOnly,
@@ -74,6 +71,17 @@ enum DictationAIPostProcessingGate {
         let input = "\(trimmedBase)|\(trimmedKey)"
         let digest = SHA256.hash(data: Data(input.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func isPrivateProviderConfigured(settings: SettingsStore) -> Bool {
+        guard PrivateAIIntegrationService.isLocalRuntimeConfigured else { return false }
+
+        let providerID = PrivateAIProviderFeature.shared.providerID
+        let key = self.providerKey(for: providerID)
+        let modelID = settings.selectedModelByProvider[key] ?? PrivateAIIntegrationService.configuredModelID
+        guard !modelID.isEmpty else { return false }
+
+        return settings.verifiedProviderFingerprints[key] == PrivateAIProviderFeature.verificationFingerprint(for: modelID)
     }
 
     static func isLocalEndpoint(_ urlString: String) -> Bool {

@@ -152,6 +152,10 @@ enum PrivateAIProviderFeature {
         let name = self.shared.providerName.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? "Private AI Provider" : name
     }
+
+    nonisolated static func verificationFingerprint(for modelID: String) -> String {
+        "private-ai-provider|\(modelID)"
+    }
 }
 
 enum PrivateFeatures {

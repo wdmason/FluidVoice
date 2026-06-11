@@ -1298,7 +1298,7 @@ final class AIEnhancementSettingsViewModel: ObservableObject {
     }
 
     private func privateAIFingerprint(for modelID: String) -> String {
-        "private-ai-provider|\(modelID)"
+        PrivateAIProviderFeature.verificationFingerprint(for: modelID)
     }
 
     private func privateAIErrorMessage(for error: Error) -> String {
