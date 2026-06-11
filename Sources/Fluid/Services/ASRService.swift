@@ -58,6 +58,7 @@ private actor ModelDownloadRegistry {
     }
 }
 
+// swiftlint:disable type_body_length
 /// A comprehensive speech recognition service that handles real-time audio transcription.
 ///
 /// This service manages the entire ASR (Automatic Speech Recognition) pipeline including:
@@ -504,6 +505,7 @@ final class ASRService: ObservableObject {
     // Thread-safe buffer to prevent "Array mutation while enumerating" and memory corruption crashes
     // during long sessions where reallocation occurs frequently.
     private let audioBuffer = ThreadSafeAudioBuffer()
+    private var lastCompletedAudioSnapshot: DictationAudioSnapshot?
 
     // Streaming transcription state (no VAD)
     private var streamingTask: Task<Void, Never>?
@@ -540,11 +542,20 @@ final class ASRService: ObservableObject {
     var audioLevelPublisher: AnyPublisher<CGFloat, Never> { self.audioLevelSubject.eraseToAnyPublisher() }
     private var lastAudioLevelSentAt: TimeInterval = 0
 
+    func consumeLastCompletedAudioSnapshot() -> DictationAudioSnapshot? {
+        let snapshot = self.lastCompletedAudioSnapshot
+        self.lastCompletedAudioSnapshot = nil
+        return snapshot
+    }
+
     private var streamingChunkDurationSeconds: Double {
-        if SettingsStore.shared.parakeetFinalizationMode == .tokenTimedChunkMerge {
+        let selectedModel = SettingsStore.shared.selectedSpeechModel
+        if selectedModel == .parakeetTDT || selectedModel == .parakeetTDTv2,
+           SettingsStore.shared.parakeetFinalizationMode == .tokenTimedChunkMerge
+        {
             return 0.4
         }
-        return SettingsStore.shared.selectedSpeechModel.streamingPreviewIntervalSeconds
+        return selectedModel.streamingPreviewIntervalSeconds
     }
 
     private var minimumStreamingPreviewSamples: Int {
@@ -921,6 +932,7 @@ final class ASRService: ObservableObject {
     /// Check debug logs for detailed error information.
     func stop() async -> String {
         DebugLogger.shared.info("🛑 STOP() called - beginning shutdown sequence", source: "ASRService")
+        self.lastCompletedAudioSnapshot = nil
         let stopStartedAt = Date().timeIntervalSince1970
         self.benchmarkLog("stop_start ageMs=\(self.elapsedMilliseconds(since: self.benchmarkRecordingStartedAt)) bufferedSamples=\(self.audioBuffer.count)")
 
@@ -990,6 +1002,7 @@ final class ASRService: ObservableObject {
         // Thread-safe copy of recorded audio
         var pcm = self.audioBuffer.getAll()
         self.audioBuffer.clear()
+        let capturedPCM = pcm
         self.benchmarkLog("stop_audio_drained samples=\(pcm.count) audioMs=\(Int((Double(pcm.count) / 16_000.0 * 1000).rounded()))")
 
         // Drop recordings with no audio at all — nothing to transcribe.
@@ -1096,6 +1109,16 @@ final class ASRService: ObservableObject {
             self.recordWordBoostHitIfAny(transcribedText: cleanedText)
             DebugLogger.shared.debug("After post-processing: '\(cleanedText)'", source: "ASRService")
             self.benchmarkLog("stop_end result=success totalMs=\(self.elapsedMilliseconds(since: stopStartedAt)) recordingAgeMs=\(self.elapsedMilliseconds(since: self.benchmarkRecordingStartedAt)) cleanedChars=\(cleanedText.count)")
+            if SettingsStore.shared.saveTranscriptionHistory,
+               SettingsStore.shared.saveAudioWithTranscriptionHistory,
+               !capturedPCM.isEmpty
+            {
+                self.lastCompletedAudioSnapshot = DictationAudioSnapshot(
+                    samples: capturedPCM,
+                    sampleRate: 16_000,
+                    channels: 1
+                )
+            }
 
             // Resume media playback if we paused it
             if shouldResumeMedia {
@@ -1135,6 +1158,90 @@ final class ASRService: ObservableObject {
             self.benchmarkLog("stop_end result=error totalMs=\(self.elapsedMilliseconds(since: stopStartedAt)) error=\(error.localizedDescription)")
             return ""
         }
+    }
+
+    func transcribeSamplesForAPI(_ inputSamples: [Float]) async throws -> ASRTranscriptionResult {
+        var samples = inputSamples
+        guard !samples.isEmpty else {
+            return ASRTranscriptionResult(text: "", confidence: 0)
+        }
+
+        let minSamples = 16_000
+        if samples.count < minSamples {
+            samples.append(contentsOf: repeatElement(0.0, count: minSamples - samples.count))
+        }
+
+        try await self.ensureAsrReady()
+        guard self.transcriptionProvider.isReady else {
+            throw NSError(
+                domain: "ASRService",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "Transcription provider is not ready."]
+            )
+        }
+
+        let result = try await transcriptionExecutor.run { [provider = self.transcriptionProvider] in
+            try await provider.transcribeFinal(samples)
+        }
+
+        if !self.hasCompletedFirstTranscription {
+            self.hasCompletedFirstTranscription = true
+            self.isLoadingModel = false
+        }
+
+        let cleanedText = ASRService.applyCustomDictionary(ASRService.removeFillerWords(result.text))
+        self.recordWordBoostHitIfAny(transcribedText: cleanedText)
+        return ASRTranscriptionResult(text: cleanedText, confidence: result.confidence)
+    }
+
+    func transcribeFileForAPI(_ fileURL: URL) async throws -> (result: ASRTranscriptionResult, sampleCount: Int) {
+        guard FileManager.default.isReadableFile(atPath: fileURL.path) else {
+            throw NSError(
+                domain: "ASRService",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "Audio file is not readable."]
+            )
+        }
+
+        try await self.ensureAsrReady()
+        let provider = self.transcriptionProvider
+        guard provider.isReady else {
+            throw NSError(
+                domain: "ASRService",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "Transcription provider is not ready."]
+            )
+        }
+
+        let estimatedSamples = Self.estimatedMono16kSampleCount(for: fileURL)
+        guard provider.prefersNativeFileTranscription else {
+            let samples = try LocalAPIAudioDecoder.samples(from: fileURL)
+            let result = try await self.transcribeSamplesForAPI(samples)
+            return (result, samples.count)
+        }
+
+        let result = try await transcriptionExecutor.run { [provider] in
+            try await provider.transcribeFile(at: fileURL)
+        }
+
+        if !self.hasCompletedFirstTranscription {
+            self.hasCompletedFirstTranscription = true
+            self.isLoadingModel = false
+        }
+
+        let cleanedText = ASRService.applyCustomDictionary(ASRService.removeFillerWords(result.text))
+        self.recordWordBoostHitIfAny(transcribedText: cleanedText)
+        return (ASRTranscriptionResult(text: cleanedText, confidence: result.confidence), estimatedSamples)
+    }
+
+    private static func estimatedMono16kSampleCount(for fileURL: URL) -> Int {
+        guard
+            let file = try? AVAudioFile(forReading: fileURL),
+            file.processingFormat.sampleRate > 0
+        else {
+            return 0
+        }
+        return Int((Double(file.length) * 16_000.0 / file.processingFormat.sampleRate).rounded())
     }
 
     func stopWithoutTranscription() async {
@@ -2789,6 +2896,8 @@ final class ASRService: ObservableObject {
         return result
     }
 }
+
+// swiftlint:enable type_body_length
 
 private extension SettingsStore.SpeechModel {
     var nemotronProviderMode: NemotronProvider.Mode {

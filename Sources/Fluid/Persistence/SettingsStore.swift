@@ -8,7 +8,7 @@ import SwiftUI
 import FluidAudio
 #endif
 
-// swiftlint:disable type_body_length
+// swiftlint:disable file_length type_body_length
 final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
     static let transcriptionPreviewCharLimitRange: ClosedRange<Int> = 50...800
@@ -105,8 +105,7 @@ final class SettingsStore: ObservableObject {
     }
 
     enum DictationPromptSelection: Equatable {
-        case off
-        case `default`
+        case off, `default`, privateAI
         case profile(String)
     }
 
@@ -311,27 +310,29 @@ final class SettingsStore: ObservableObject {
     }
 
     func dictationPromptSelection(for slot: DictationShortcutSlot) -> DictationPromptSelection {
-        if self.isDictationPromptOff(for: slot) {
-            return .off
-        }
+        if self.isDictationPromptOff(for: slot) { return .off }
+        if PrivateAIProviderPromptFormat.isAvailable(settings: self) { return .privateAI }
         if let promptID = self.selectedDictationPromptID(for: slot) {
+            if promptID == PrivateAIProviderPromptFormat.promptSelectionID {
+                return PrivateAIProviderPromptFormat.isAvailable(settings: self) ? .privateAI : .default
+            }
             return .profile(promptID)
         }
         return .default
     }
 
     func setDictationPromptSelection(_ selection: DictationPromptSelection, for slot: DictationShortcutSlot) {
+        let selectedID: String?
         switch selection {
-        case .off:
-            self.setDictationPromptOff(true, for: slot)
-            self.setSelectedDictationPromptID(nil, for: slot)
-        case .default:
-            self.setDictationPromptOff(false, for: slot)
-            self.setSelectedDictationPromptID(nil, for: slot)
+        case .off, .default:
+            selectedID = nil
+        case .privateAI:
+            selectedID = PrivateAIProviderPromptFormat.promptSelectionID
         case let .profile(promptID):
-            self.setDictationPromptOff(false, for: slot)
-            self.setSelectedDictationPromptID(promptID, for: slot)
+            selectedID = promptID
         }
+        self.setDictationPromptOff(selection == .off, for: slot)
+        self.setSelectedDictationPromptID(selectedID, for: slot)
     }
 
     /// Convenience: currently selected profile, or nil if Default/invalid selection.
@@ -387,6 +388,8 @@ final class SettingsStore: ObservableObject {
     func selectedPromptID(for mode: PromptMode) -> String? {
         switch mode.normalized {
         case .dictate:
+            if self.selectedDictationPromptID == PrivateAIProviderPromptFormat.promptSelectionID,
+               !PrivateAIProviderPromptFormat.isAvailable(settings: self) { return nil }
             return self.selectedDictationPromptID
         case .edit:
             return self.selectedEditPromptID
@@ -438,7 +441,7 @@ final class SettingsStore: ObservableObject {
 
     func resolvedDictationPromptProfile(for slot: DictationShortcutSlot, appBundleID: String?) -> DictationPromptProfile? {
         switch self.dictationPromptSelection(for: slot) {
-        case .off:
+        case .off, .privateAI:
             return nil
         case let .profile(promptID):
             return self.dictationPromptProfiles.first(where: { $0.id == promptID && $0.mode.normalized == .dictate })
@@ -452,6 +455,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func isAppDictationPromptBindingActive(for slot: DictationShortcutSlot, appBundleID: String?) -> Bool {
+        guard !PrivateAIProviderPromptFormat.isAvailable(settings: self) else { return false }
         guard self.dictationPromptSelection(for: slot) == .default else { return false }
         return self.hasAppPromptBinding(for: .dictate, appBundleID: appBundleID)
     }
@@ -466,6 +470,7 @@ final class SettingsStore: ObservableObject {
                 return name.isEmpty ? "Untitled" : name
             }
             return "Default"
+        case .privateAI: return PrivateAIProviderFeature.displayName
         case let .profile(promptID):
             guard let profile = self.dictationPromptProfiles.first(where: { $0.id == promptID && $0.mode.normalized == .dictate }) else {
                 return "Default"
@@ -924,7 +929,7 @@ final class SettingsStore: ObservableObject {
         switch self.dictationPromptSelection(for: slot) {
         case .off:
             return ""
-        case .default:
+        case .default, .privateAI:
             return self.effectivePromptBody(for: .dictate, appBundleID: appBundleID)
         case let .profile(promptID):
             guard let profile = self.dictationPromptProfiles.first(where: { $0.id == promptID && $0.mode.normalized == .dictate }) else {
@@ -945,7 +950,7 @@ final class SettingsStore: ObservableObject {
         }
 
         switch self.dictationPromptSelection(for: slot) {
-        case .off, .default:
+        case .off, .default, .privateAI:
             return self.effectiveSystemPrompt(for: .dictate, appBundleID: appBundleID)
         case let .profile(promptID):
             guard let profile = self.dictationPromptProfiles.first(where: { $0.id == promptID && $0.mode.normalized == .dictate }) else {
@@ -1109,11 +1114,11 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    var fluid1InterestCaptured: Bool {
-        get { self.defaults.bool(forKey: Keys.fluid1InterestCaptured) }
+    var privateAIInterestCaptured: Bool {
+        get { self.defaults.bool(forKey: Keys.privateAIInterestCaptured) }
         set {
             objectWillChange.send()
-            self.defaults.set(newValue, forKey: Keys.fluid1InterestCaptured)
+            self.defaults.set(newValue, forKey: Keys.privateAIInterestCaptured)
         }
     }
 
@@ -1200,10 +1205,19 @@ final class SettingsStore: ObservableObject {
     }
 
     var selectedProviderID: String {
-        get { self.defaults.string(forKey: Keys.selectedProviderID) ?? "openai" }
+        get { self.availableSelectedProviderID(for: self.defaults.string(forKey: Keys.selectedProviderID)) }
         set {
             objectWillChange.send()
-            self.defaults.set(newValue, forKey: Keys.selectedProviderID)
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.defaults.set(trimmed.isEmpty ? "openai" : trimmed, forKey: Keys.selectedProviderID)
+        }
+    }
+
+    var privateAIPrefixKVCacheEnabled: Bool {
+        get { self.defaults.object(forKey: PrivateAIProviderFeature.shared.prefixCacheDefaultsKey) as? Bool ?? true }
+        set {
+            objectWillChange.send()
+            self.defaults.set(newValue, forKey: PrivateAIProviderFeature.shared.prefixCacheDefaultsKey)
         }
     }
 
@@ -2242,6 +2256,33 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// Stores actual microphone audio locally alongside dictation history.
+    var saveAudioWithTranscriptionHistory: Bool {
+        get {
+            let value = self.defaults.object(forKey: Keys.saveAudioWithTranscriptionHistory)
+            return value as? Bool ?? false
+        }
+        set {
+            objectWillChange.send()
+            self.defaults.set(newValue, forKey: Keys.saveAudioWithTranscriptionHistory)
+        }
+    }
+
+    var audioHistoryBudgetGB: Double {
+        get {
+            let value = self.defaults.double(forKey: Keys.audioHistoryBudgetGB)
+            return value > 0 ? max(0.1, value) : 4.0
+        }
+        set {
+            objectWillChange.send()
+            self.defaults.set(max(0.1, newValue), forKey: Keys.audioHistoryBudgetGB)
+        }
+    }
+
+    var audioHistoryBudgetBytes: Int64 {
+        DictationAudioHistoryStore.bytes(forGigabytes: self.audioHistoryBudgetGB)
+    }
+
     /// Whether to show a native notification when AI post-processing fails and raw text is used
     var notifyAIProcessingFailures: Bool {
         get {
@@ -2260,6 +2301,7 @@ final class SettingsStore: ObservableObject {
             selectedModelByProvider: self.selectedModelByProvider,
             savedProviders: self.savedProviders,
             modelReasoningConfigs: self.modelReasoningConfigs,
+            privateAIPrefixKVCacheEnabled: self.privateAIPrefixKVCacheEnabled,
             selectedSpeechModel: self.selectedSpeechModel,
             selectedCohereLanguage: self.selectedCohereLanguage,
             selectedNemotronLanguage: self.selectedNemotronLanguage,
@@ -2305,6 +2347,8 @@ final class SettingsStore: ObservableObject {
             transcriptionPreviewCharLimit: self.transcriptionPreviewCharLimit,
             userTypingWPM: self.userTypingWPM,
             saveTranscriptionHistory: self.saveTranscriptionHistory,
+            saveAudioWithTranscriptionHistory: self.saveAudioWithTranscriptionHistory,
+            audioHistoryBudgetGB: self.audioHistoryBudgetGB,
             notifyAIProcessingFailures: self.notifyAIProcessingFailures,
             weekendsDontBreakStreak: self.weekendsDontBreakStreak,
             fillerWords: self.fillerWords,
@@ -2336,6 +2380,9 @@ final class SettingsStore: ObservableObject {
         self.selectedProviderID = payload.selectedProviderID
         self.selectedModelByProvider = payload.selectedModelByProvider
         self.modelReasoningConfigs = payload.modelReasoningConfigs
+        if let privateAIPrefixKVCacheEnabled = payload.privateAIPrefixKVCacheEnabled {
+            self.privateAIPrefixKVCacheEnabled = privateAIPrefixKVCacheEnabled
+        }
         self.selectedSpeechModel = payload.selectedSpeechModel
         self.selectedCohereLanguage = payload.selectedCohereLanguage
         if let selectedNemotronLanguage = payload.selectedNemotronLanguage {
@@ -2380,6 +2427,12 @@ final class SettingsStore: ObservableObject {
         self.transcriptionPreviewCharLimit = payload.transcriptionPreviewCharLimit
         self.userTypingWPM = payload.userTypingWPM
         self.saveTranscriptionHistory = payload.saveTranscriptionHistory
+        if let saveAudioWithTranscriptionHistory = payload.saveAudioWithTranscriptionHistory {
+            self.saveAudioWithTranscriptionHistory = saveAudioWithTranscriptionHistory
+        }
+        if let audioHistoryBudgetGB = payload.audioHistoryBudgetGB {
+            self.audioHistoryBudgetGB = audioHistoryBudgetGB
+        }
         if let notifyAIProcessingFailures = payload.notifyAIProcessingFailures {
             self.notifyAIProcessingFailures = notifyAIProcessingFailures
         }
@@ -2534,6 +2587,18 @@ final class SettingsStore: ObservableObject {
                 didChangeProfiles = true
             }
         }
+        normalizedProfiles.removeAll { profile in
+            let name = profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prompt = Self.stripBasePrompt(for: profile.mode, from: profile.prompt)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let isLegacyPlaceholder = profile.mode.normalized == .dictate &&
+                name.caseInsensitiveCompare("Blocked") == .orderedSame &&
+                prompt.caseInsensitiveCompare("Blocked prompt") == .orderedSame
+            if isLegacyPlaceholder {
+                didChangeProfiles = true
+            }
+            return isLegacyPlaceholder
+        }
         if didChangeProfiles {
             self.dictationPromptProfiles = normalizedProfiles
         }
@@ -2682,6 +2747,20 @@ final class SettingsStore: ObservableObject {
             return providerID
         }
         return "custom:\(providerID)"
+    }
+
+    private func availableSelectedProviderID(for rawValue: String?) -> String {
+        let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let providerID = trimmed.isEmpty ? "openai" : trimmed
+        if ModelRepository.shared.isBuiltIn(providerID) { return providerID }
+
+        let savedProviderID = providerID.hasPrefix("custom:") ?
+            String(providerID.dropFirst("custom:".count)) : providerID
+        if self.savedProviders.contains(where: { $0.id == savedProviderID }) {
+            return savedProviderID
+        }
+
+        return "openai"
     }
 
     private func sanitizeAPIKeys(_ values: [String: String]) -> [String: String] {
@@ -3539,17 +3618,19 @@ private extension SettingsStore {
         static let selectedAIModel = "SelectedAIModel"
         static let selectedModelByProvider = "SelectedModelByProvider"
         static let selectedProviderID = "SelectedProviderID"
+        static let privateAIPrefixKVCacheEnabled = "PrivateAIProviderPrefixKVCacheEnabled"
         static let providerAPIKeys = "ProviderAPIKeys"
         static let providerAPIKeyIdentifiers = "ProviderAPIKeyIdentifiers"
         static let savedProviders = "SavedProviders"
         static let verifiedProviderFingerprints = "VerifiedProviderFingerprints"
         static let shareAnonymousAnalytics = "ShareAnonymousAnalytics"
-        static let fluid1InterestCaptured = "Fluid1InterestCaptured"
+        static let privateAIInterestCaptured = "PrivateAIProviderInterestCaptured"
         static let hotkeyShortcutKey = "HotkeyShortcutKey"
         static let preferredInputDeviceUID = "PreferredInputDeviceUID"
         static let preferredOutputDeviceUID = "PreferredOutputDeviceUID"
         static let syncAudioDevicesWithSystem = "SyncAudioDevicesWithSystem"
         static let visualizerNoiseThreshold = "VisualizerNoiseThreshold"
+        static let launchAtStartup = "LaunchAtStartup"
         static let showInDock = "ShowInDock"
         static let accentColorOption = "AccentColorOption"
         static let enableTranscriptionSounds = "EnableTranscriptionSounds"
@@ -3603,6 +3684,8 @@ private extension SettingsStore {
         // Stats Keys
         static let userTypingWPM = "UserTypingWPM"
         static let saveTranscriptionHistory = "SaveTranscriptionHistory"
+        static let saveAudioWithTranscriptionHistory = "SaveAudioWithTranscriptionHistory"
+        static let audioHistoryBudgetGB = "AudioHistoryBudgetGB"
         static let notifyAIProcessingFailures = "NotifyAIProcessingFailures"
 
         // Filler Words
