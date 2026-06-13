@@ -76,9 +76,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // Ensure dock-icon reopen always foregrounds FluidVoice.
         sender.activate(ignoringOtherApps: true)
-        self.bringMainWindowToFrontIfPresent()
 
-        return true
+        return !self.bringMainWindowToFrontIfPresent()
     }
 
     func userNotificationCenter(
@@ -167,7 +166,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Give ContentView.onAppear time to finish its startup work (menu bar setup plus
         // the delayed service initialization), then put the window away. Alpha is restored
         // so opening it later from the menu bar shows it normally.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak mainWindow] in
+            guard let mainWindow, mainWindow.alphaValue <= 0.01 else { return }
             mainWindow.orderOut(nil)
             mainWindow.alphaValue = originalAlpha
             DebugLogger.shared.info(
@@ -205,6 +205,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @discardableResult
     private func bringMainWindowToFrontIfPresent() -> Bool {
         if let mainWindow = NSApp.windows.first(where: self.isMainWindow) {
+            if mainWindow.alphaValue <= 0.01 {
+                mainWindow.alphaValue = 1
+            }
             mainWindow.orderFrontRegardless()
             mainWindow.makeKeyAndOrderFront(nil)
             DebugLogger.shared.debug("Brought main window to front", source: "AppDelegate")
