@@ -1100,6 +1100,22 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// Show the main window when macOS launches FluidVoice at login (default: ON, matching
+    /// current behavior). When off, login launches boot silently in the menu bar. Manual
+    /// launches always show the window. Default-true semantics so existing installs keep
+    /// their current behavior.
+    var showMainWindowAtLoginLaunch: Bool {
+        get {
+            let value = self.defaults.object(forKey: Keys.showMainWindowAtLoginLaunch)
+            if value == nil { return true }
+            return self.defaults.bool(forKey: Keys.showMainWindowAtLoginLaunch)
+        }
+        set {
+            objectWillChange.send()
+            self.defaults.set(newValue, forKey: Keys.showMainWindowAtLoginLaunch)
+        }
+    }
+
     /// Anonymous analytics toggle (default: ON). Uses default-true semantics so existing installs
     /// upgrading to a version that includes analytics do not silently default to OFF.
     var shareAnonymousAnalytics: Bool {
@@ -2338,6 +2354,7 @@ final class SettingsStore: ObservableObject {
             cancelRecordingHotkeyShortcut: self.cancelRecordingHotkeyShortcut,
             showThinkingTokens: self.showThinkingTokens,
             hideFromDockAndAppSwitcher: self.hideFromDockAndAppSwitcher,
+            showMainWindowAtLoginLaunch: self.showMainWindowAtLoginLaunch,
             accentColorOption: self.accentColorOption,
             transcriptionStartSound: self.transcriptionStartSound,
             transcriptionSoundVolume: self.transcriptionSoundVolume,
@@ -2419,6 +2436,7 @@ final class SettingsStore: ObservableObject {
         self.cancelRecordingHotkeyShortcut = payload.cancelRecordingHotkeyShortcut
         self.showThinkingTokens = payload.showThinkingTokens
         self.hideFromDockAndAppSwitcher = payload.hideFromDockAndAppSwitcher
+        self.showMainWindowAtLoginLaunch = payload.showMainWindowAtLoginLaunch ?? true
         self.accentColorOption = payload.accentColorOption
         self.transcriptionStartSound = payload.transcriptionStartSound
         self.transcriptionSoundVolume = payload.transcriptionSoundVolume
@@ -3625,6 +3643,7 @@ private extension SettingsStore {
     /// Keys
     enum Keys {
         static let enableAIProcessing = "EnableAIProcessing"
+        static let showMainWindowAtLoginLaunch = "ShowMainWindowAtLoginLaunch"
         static let dictationPromptOff = "DictationPromptOff"
         static let enableDebugLogs = "EnableDebugLogs"
         static let availableAIModels = "AvailableAIModels"
