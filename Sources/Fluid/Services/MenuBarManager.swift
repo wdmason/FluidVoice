@@ -389,7 +389,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         menu.addItem(openItem)
 
         // Preferences
-        let preferencesItem = NSMenuItem(title: "Preferences", action: #selector(openPreferences), keyEquivalent: ",")
+        let preferencesItem = NSMenuItem(title: "Settings...", action: #selector(openPreferences), keyEquivalent: ",")
         preferencesItem.target = self
         preferencesItem.keyEquivalentModifierMask = [.command]
         menu.addItem(preferencesItem)
@@ -761,7 +761,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
         let rootView = ContentView()
             .environmentObject(self)
             .environmentObject(AppServices.shared)
-            .appTheme(.dark)
+            .appTheme(AppTheme.dark(accent: SettingsStore.shared.accentColor))
             .preferredColorScheme(.dark)
 
         // Host inside an AppKit window

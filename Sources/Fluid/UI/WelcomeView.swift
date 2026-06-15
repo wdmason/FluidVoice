@@ -16,6 +16,7 @@ struct WelcomeView: View {
     @Binding var selectedSidebarItem: SidebarItem?
     @Binding var playgroundUsed: Bool
     var isTranscriptionFocused: FocusState<Bool>.Binding
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.theme) private var theme
 
     let accessibilityEnabled: Bool
@@ -34,6 +35,9 @@ struct WelcomeView: View {
 
     private let playgroundSectionID = "welcome-playground-section"
 
+    private var commandModeColor: Color { self.theme.palette.warning }
+    private var editModeColor: Color { self.theme.palette.accent }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -43,8 +47,13 @@ struct WelcomeView: View {
                         Image(systemName: "book.fill")
                             .font(.title2)
                             .foregroundStyle(self.theme.palette.accent)
-                        Text((self.asr.isAsrReady || self.asr.modelsExistOnDisk) ? "Getting Started" : "Welcome to FluidVoice")
-                            .font(.title2.weight(.bold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text((self.asr.isAsrReady || self.asr.modelsExistOnDisk) ? "Getting Started" : "Welcome to FluidVoice")
+                                .font(.title2.weight(.bold))
+                            Text("Talk anywhere. FluidVoice types for you.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .padding(.bottom, 4)
 
@@ -153,149 +162,6 @@ struct WelcomeView: View {
                         .padding(14)
                     }
 
-                    // How to Use
-                    ThemedCard(style: .standard) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("How to Use", systemImage: "play.fill")
-                                .font(.headline)
-                                .foregroundStyle(Color.fluidGreen)
-
-                            VStack(alignment: .leading, spacing: 10) {
-                                self.howToStep(number: 1, title: "Start Recording", description: "Press your hotkey (default: Right Option/Alt) or click the button")
-                                self.howToStep(number: 2, title: "Speak Clearly", description: "Speak naturally - works best in quiet environments")
-                                self.howToStep(number: 3, title: "Auto-Type Result", description: "Transcription is automatically typed into your focused app")
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    // Command Mode
-                    ThemedCard(style: .standard) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                Label("Command Mode", systemImage: "terminal.fill")
-                                    .font(.headline)
-                                    .foregroundStyle(Color(red: 1.0, green: 0.35, blue: 0.35))
-
-                                self.featureBadge("New", color: Color(red: 1.0, green: 0.35, blue: 0.35))
-                                self.featureBadge("Alpha", color: Color(red: 1.0, green: 0.35, blue: 0.35).opacity(0.7))
-
-                                Spacer()
-
-                                Button("Open") {
-                                    self.selectedSidebarItem = .commandMode
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-
-                            Text("Control your Mac with voice commands. Execute terminal commands, open apps, and more.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Getting Started")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.orange)
-
-                                HStack(spacing: 4) {
-                                    Text("Press")
-                                    self.keyboardBadge(self.commandModeShortcutDisplay)
-                                    Text("to open, speak your command, then press again to send.")
-                                }
-                                .font(.caption)
-                                .foregroundStyle(.primary.opacity(0.8))
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Examples")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.orange)
-                                self.commandModeExample(icon: "folder", text: "\"List files in my Downloads folder\"")
-                                self.commandModeExample(icon: "plus.rectangle.on.folder", text: "\"Create a folder called Projects on Desktop\"")
-                                self.commandModeExample(icon: "network", text: "\"What's my IP address?\"")
-                                self.commandModeExample(icon: "safari", text: "\"Open Safari\"")
-                            }
-
-                            HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                                Text("AI can make mistakes. Avoid destructive commands.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(16)
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    // Edit Mode
-                    ThemedCard(style: .standard) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                Label("Edit Mode", systemImage: "pencil.and.outline")
-                                    .font(.headline)
-                                    .foregroundStyle(.blue)
-
-                                self.featureBadge("New", color: .blue)
-
-                                Spacer()
-
-                                Button("Open AI Settings") {
-                                    self.selectedSidebarItem = .aiEnhancements
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-
-                            Text("AI-powered editing assistant. Write fresh content or edit selected text with voice.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            VStack(alignment: .leading, spacing: 10) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Create New Text")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundStyle(.blue)
-
-                                    HStack(spacing: 4) {
-                                        Text("Press")
-                                        self.keyboardBadge(self.writeModeShortcutDisplay)
-                                        Text("and speak what you want to write.")
-                                    }
-                                    .font(.caption)
-                                    .foregroundStyle(.primary.opacity(0.8))
-
-                                    self.writeModeExample(text: "\"Write an email asking for time off\"")
-                                    self.writeModeExample(text: "\"Draft a thank you note\"")
-                                }
-
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Edit Selected Text")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundStyle(.blue)
-
-                                    HStack(spacing: 4) {
-                                        Text("Select text first, then press")
-                                        self.keyboardBadge(self.writeModeShortcutDisplay)
-                                        Text("and speak your instruction.")
-                                    }
-                                    .font(.caption)
-                                    .foregroundStyle(.primary.opacity(0.8))
-
-                                    self.writeModeExample(text: "\"Make this more formal\"")
-                                    self.writeModeExample(text: "\"Fix grammar and spelling\"")
-                                    self.writeModeExample(text: "\"Summarize this\"")
-                                }
-                            }
-                        }
-                        .padding(16)
-                    }
-                    .frame(maxWidth: .infinity)
-
                     // Test Playground
                     ThemedCard(hoverEffect: false) {
                         VStack(alignment: .leading, spacing: 14) {
@@ -382,8 +248,8 @@ struct WelcomeView: View {
                                     }
                                     .fluidButton(.primary, size: .large, isRecording: self.asr.isRunning)
                                     .buttonHoverEffect()
-                                    .scaleEffect(self.asr.isRunning ? 1.02 : 1.0)
-                                    .animation(.spring(response: 0.3), value: self.asr.isRunning)
+                                    .scaleEffect(!self.reduceMotion && self.asr.isRunning ? 1.02 : 1.0)
+                                    .animation(self.reduceMotion ? nil : .spring(response: 0.3), value: self.asr.isRunning)
                                     .disabled(!self.asr.isAsrReady && !self.asr.isRunning)
 
                                     if !self.asr.isRunning && !self.asr.finalText.isEmpty {
@@ -472,6 +338,54 @@ struct WelcomeView: View {
                         .padding(16)
                     }
                     .id(self.playgroundSectionID)
+
+                    // Secondary guidance
+                    ThemedCard(style: .subtle) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            DisclosureGroup {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    self.howToStep(number: 1, title: "Start Recording", description: "Press your hotkey (default: Right Option/Alt) or click the button")
+                                    self.howToStep(number: 2, title: "Speak Clearly", description: "Speak naturally - works best in quiet environments")
+                                    self.howToStep(number: 3, title: "Auto-Type Result", description: "Transcription is automatically typed into your focused app")
+                                }
+                                .padding(.top, 8)
+                            } label: {
+                                Label("How to Use", systemImage: "play.fill")
+                                    .font(.headline)
+                                    .foregroundStyle(self.theme.palette.accent)
+                            }
+
+                            Divider().opacity(0.2)
+
+                            DisclosureGroup {
+                                self.commandModeGuide
+                                    .padding(.top, 8)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Label("Command Mode", systemImage: "terminal.fill")
+                                        .font(.headline)
+                                        .foregroundStyle(self.commandModeColor)
+                                    self.featureBadge("New", color: self.commandModeColor)
+                                    self.featureBadge("Alpha", color: self.commandModeColor.opacity(0.75))
+                                }
+                            }
+
+                            Divider().opacity(0.2)
+
+                            DisclosureGroup {
+                                self.editModeGuide
+                                    .padding(.top, 8)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Label("Edit Mode", systemImage: "pencil.and.outline")
+                                        .font(.headline)
+                                        .foregroundStyle(self.editModeColor)
+                                    self.featureBadge("New", color: self.editModeColor)
+                                }
+                            }
+                        }
+                        .padding(12)
+                    }
                 }
                 .padding(16)
             }
@@ -490,6 +404,112 @@ struct WelcomeView: View {
     }
 
     // MARK: - Helper Views
+
+    private var commandModeGuide: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Control your Mac with voice commands. Execute terminal commands, open apps, and more.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("Open") {
+                    self.selectedSidebarItem = .commandMode
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Getting Started")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(self.commandModeColor)
+
+                HStack(spacing: 4) {
+                    Text("Press")
+                    self.keyboardBadge(self.commandModeShortcutDisplay)
+                    Text("to open, speak your command, then press again to send.")
+                }
+                .font(.caption)
+                .foregroundStyle(.primary.opacity(0.8))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Examples")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(self.commandModeColor)
+                self.commandModeExample(icon: "folder", text: "\"List files in my Downloads folder\"")
+                self.commandModeExample(icon: "plus.rectangle.on.folder", text: "\"Create a folder called Projects on Desktop\"")
+                self.commandModeExample(icon: "network", text: "\"What's my IP address?\"")
+                self.commandModeExample(icon: "safari", text: "\"Open Safari\"")
+            }
+
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(self.commandModeColor)
+                Text("AI can make mistakes. Avoid destructive commands.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var editModeGuide: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("AI-powered editing assistant. Write fresh content or edit selected text with voice.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("Open AI Settings") {
+                    self.selectedSidebarItem = .aiEnhancements
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Create New Text")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(self.editModeColor)
+
+                    HStack(spacing: 4) {
+                        Text("Press")
+                        self.keyboardBadge(self.writeModeShortcutDisplay)
+                        Text("and speak what you want to write.")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.primary.opacity(0.8))
+
+                    self.writeModeExample(text: "\"Write an email asking for time off\"")
+                    self.writeModeExample(text: "\"Draft a thank you note\"")
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Edit Selected Text")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(self.editModeColor)
+
+                    HStack(spacing: 4) {
+                        Text("Select text first, then press")
+                        self.keyboardBadge(self.writeModeShortcutDisplay)
+                        Text("and speak your instruction.")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.primary.opacity(0.8))
+
+                    self.writeModeExample(text: "\"Make this more formal\"")
+                    self.writeModeExample(text: "\"Fix grammar and spelling\"")
+                    self.writeModeExample(text: "\"Summarize this\"")
+                }
+            }
+        }
+    }
 
     private func howToStep(number: Int, title: String, description: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
@@ -533,7 +553,7 @@ struct WelcomeView: View {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundStyle(.orange.opacity(0.8))
+                .foregroundStyle(self.commandModeColor.opacity(0.8))
                 .frame(width: 14)
             Text(text)
                 .font(.caption)
@@ -543,8 +563,9 @@ struct WelcomeView: View {
 
     private func writeModeExample(text: String) -> some View {
         HStack(spacing: 6) {
-            Text("•")
-                .foregroundStyle(.blue.opacity(0.6))
+            Circle()
+                .fill(self.editModeColor.opacity(0.6))
+                .frame(width: 4, height: 4)
             Text(text)
                 .font(.caption)
                 .foregroundStyle(.primary.opacity(0.8))
@@ -902,7 +923,7 @@ struct OnboardingFlowView: View {
 
                         HStack(spacing: 10) {
                             Image(systemName: self.isVoiceModelReady ? "checkmark.circle.fill" : "cpu")
-                                .foregroundStyle(self.isVoiceModelReady ? Color.fluidGreen : self.theme.palette.accent)
+                                .foregroundStyle(self.isVoiceModelReady ? self.theme.palette.success : self.theme.palette.accent)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(self.recommendedModelHeadline)
@@ -998,7 +1019,7 @@ struct OnboardingFlowView: View {
                                     systemImage: "checkmark.seal.fill"
                                 )
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.fluidGreen)
+                                .foregroundStyle(self.theme.palette.success)
                             } else if self.isRecommendedModelDownloaded {
                                 Label(
                                     self.isRecommendedModelSelected ? "Model downloaded. Click to finish loading." : "Model downloaded",
@@ -1067,7 +1088,7 @@ struct OnboardingFlowView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(self.isMicrophoneReady ? Color.fluidGreen : self.theme.palette.warning)
+                                .fill(self.isMicrophoneReady ? self.theme.palette.success : self.theme.palette.warning)
                                 .frame(width: 10, height: 10)
 
                             Text(self.isMicrophoneReady ? "Microphone access granted" : "Microphone access required")
@@ -1117,7 +1138,7 @@ struct OnboardingFlowView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(self.isAccessibilityReady ? Color.fluidGreen : self.theme.palette.warning)
+                                .fill(self.isAccessibilityReady ? self.theme.palette.success : self.theme.palette.warning)
                                 .frame(width: 10, height: 10)
 
                             Text(self.isAccessibilityReady ? "Accessibility enabled" : "Accessibility permission required")
@@ -1164,12 +1185,12 @@ struct OnboardingFlowView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: self.isAIReady ? "checkmark.circle.fill" : "sparkles")
-                    .foregroundStyle(self.isAIReady ? Color.fluidGreen : self.theme.palette.accent)
+                    .foregroundStyle(self.isAIReady ? self.theme.palette.success : self.theme.palette.accent)
                 Text(self.isAIReady
                     ? "AI enhancement is ready (or skipped)"
                     : "Configure AI enhancement or skip to continue")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(self.isAIReady ? Color.fluidGreen : .secondary)
+                    .foregroundStyle(self.isAIReady ? self.theme.palette.success : .secondary)
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
@@ -1218,7 +1239,7 @@ struct OnboardingFlowView: View {
                         if self.isPlaygroundReady {
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(Color.fluidGreen)
+                                    .foregroundStyle(self.theme.palette.success)
                                 Text("Playground test passed. You can finish setup.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -1401,7 +1422,7 @@ struct OnboardingFlowView: View {
             } else if isReady {
                 Label("Downloaded and loaded", systemImage: "checkmark.circle.fill")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.fluidGreen)
+                    .foregroundStyle(self.theme.palette.success)
             } else if isDownloaded {
                 Label("Downloaded", systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption2.weight(.semibold))
@@ -1471,7 +1492,7 @@ struct OnboardingFlowView: View {
             } else if isReady {
                 Label("Downloaded and loaded", systemImage: "checkmark.circle.fill")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.fluidGreen)
+                    .foregroundStyle(self.theme.palette.success)
             } else if isDownloaded {
                 Label("Downloaded", systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption2.weight(.semibold))

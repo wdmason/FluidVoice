@@ -931,13 +931,13 @@ struct ContentView: View {
             if !isOnboarded {
                 NavigationLink(value: SidebarItem.welcome) {
                     Label("Welcome", systemImage: "house.fill")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.body.weight(.medium))
                 }
                 .listRowBackground(self.sidebarRowBackground(for: .welcome))
             } else {
                 NavigationLink(value: SidebarItem.preferences) {
                     Label("Preferences", systemImage: "gearshape.fill")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.body.weight(.medium))
                 }
                 .listRowBackground(self.sidebarRowBackground(for: .preferences))
             }
@@ -949,10 +949,10 @@ struct ContentView: View {
             }) {
                 HStack {
                     Label("AI Settings", systemImage: "sparkles")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.body.weight(.medium))
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(self.aiSettingsExpanded ? 90 : 0))
                 }
@@ -963,14 +963,14 @@ struct ContentView: View {
             if self.aiSettingsExpanded {
                 NavigationLink(value: SidebarItem.voiceEngine) {
                     Label("Voice Engine", systemImage: "waveform")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.body.weight(.medium))
                         .padding(.leading, 18)
                 }
                 .listRowBackground(self.sidebarRowBackground(for: .voiceEngine))
 
                 NavigationLink(value: SidebarItem.aiEnhancements) {
                     Label("AI Enhancement", systemImage: "brain")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.body.weight(.medium))
                         .padding(.leading, 18)
                 }
                 .listRowBackground(self.sidebarRowBackground(for: .aiEnhancements))
@@ -980,44 +980,44 @@ struct ContentView: View {
             if !isOnboarded {
                 NavigationLink(value: SidebarItem.preferences) {
                     Label("Preferences", systemImage: "gearshape.fill")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.body.weight(.medium))
                 }
                 .listRowBackground(self.sidebarRowBackground(for: .preferences))
             }
 
             NavigationLink(value: SidebarItem.commandMode) {
                 Label("Command Mode", systemImage: "terminal.fill")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.body.weight(.medium))
             }
             .listRowBackground(self.sidebarRowBackground(for: .commandMode))
 
             NavigationLink(value: SidebarItem.meetingTools) {
                 Label("File Transcription", systemImage: "doc.text.fill")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.body.weight(.medium))
             }
             .listRowBackground(self.sidebarRowBackground(for: .meetingTools))
 
             NavigationLink(value: SidebarItem.customDictionary) {
                 Label("Custom Dictionary", systemImage: "text.book.closed.fill")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.body.weight(.medium))
             }
             .listRowBackground(self.sidebarRowBackground(for: .customDictionary))
 
             NavigationLink(value: SidebarItem.stats) {
                 Label("Stats", systemImage: "chart.bar.fill")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.body.weight(.medium))
             }
             .listRowBackground(self.sidebarRowBackground(for: .stats))
 
             NavigationLink(value: SidebarItem.history) {
                 Label("History", systemImage: "clock.arrow.circlepath")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.body.weight(.medium))
             }
             .listRowBackground(self.sidebarRowBackground(for: .history))
 
             NavigationLink(value: SidebarItem.feedback) {
                 Label("Feedback", systemImage: "envelope.fill")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.body.weight(.medium))
             }
             .listRowBackground(self.sidebarRowBackground(for: .feedback))
 
@@ -1025,7 +1025,7 @@ struct ContentView: View {
             if isOnboarded {
                 NavigationLink(value: SidebarItem.welcome) {
                     Label("Getting Started", systemImage: "house.fill")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.body.weight(.medium))
                 }
                 .listRowBackground(self.sidebarRowBackground(for: .welcome))
             }
@@ -1033,14 +1033,6 @@ struct ContentView: View {
         .listStyle(.sidebar)
         .animation(nil, value: self.selectedSidebarItem)
         .navigationTitle("FluidVoice")
-        .scrollContentBackground(.hidden)
-        .background {
-            ZStack {
-                self.theme.palette.sidebarBackground
-                Rectangle().fill(self.theme.materials.sidebar)
-            }
-            .ignoresSafeArea()
-        }
         .tint(self.theme.palette.accent)
     }
 
@@ -1050,13 +1042,7 @@ struct ContentView: View {
 
     private var detailView: some View {
         ZStack {
-            self.theme.palette.windowBackground
-                .opacity(0.98)
-                .ignoresSafeArea()
-
-            Rectangle()
-                .fill(self.theme.materials.window)
-                .opacity(0.75)
+            Color(nsColor: .windowBackgroundColor)
                 .ignoresSafeArea()
 
             self.detailContent

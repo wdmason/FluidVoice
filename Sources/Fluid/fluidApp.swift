@@ -30,6 +30,13 @@ struct FluidApp: App {
                 .preferredColorScheme(.dark)
         }
         .defaultSize(width: 1000, height: 700)
-        .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    self.menuBarManager.openPreferencesFromUI()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
     }
 }
