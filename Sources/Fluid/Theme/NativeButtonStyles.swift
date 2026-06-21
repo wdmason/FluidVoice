@@ -662,3 +662,62 @@ private struct SearchablePickerSelectedRowBackground: ViewModifier {
         )
     }
 }
+
+// MARK: - Square Icon Button Style (no horizontal padding, fixed square)
+
+struct SquareIconButtonStyle: ButtonStyle {
+    var foreground: Color? = nil
+    var borderColor: Color? = nil
+
+    func makeBody(configuration: Configuration) -> some View {
+        SquareIconButton(
+            configuration: configuration,
+            foreground: self.foreground,
+            borderColor: self.borderColor
+        )
+    }
+
+    private struct SquareIconButton: View {
+        @Environment(\.theme) private var theme
+        @State private var isHovered = false
+        let configuration: ButtonStyle.Configuration
+        let foreground: Color?
+        let borderColor: Color?
+
+        private var shape: RoundedRectangle {
+            RoundedRectangle(cornerRadius: self.theme.metrics.corners.sm, style: .continuous)
+        }
+
+        var body: some View {
+            let border = self.borderColor ?? self.theme.palette.cardBorder
+            let borderOpacity = self.borderColor == nil
+                ? (self.isHovered ? 0.8 : 0.6)
+                : (self.isHovered ? 0.84 : 0.68)
+            let foregroundColor = self.foreground ?? self.theme.palette.primaryText
+
+            self.configuration.label
+                .foregroundStyle(foregroundColor)
+                .background(self.theme.materials.card, in: self.shape)
+                .background(
+                    self.shape
+                        .fill(self.theme.palette.cardBackground)
+                        .overlay(
+                            self.shape.stroke(
+                                border.opacity(borderOpacity),
+                                lineWidth: 1
+                            )
+                        )
+                )
+                .shadow(
+                    color: border.opacity(self.isHovered ? 0.18 : 0.06),
+                    radius: self.isHovered ? 4 : 1.5,
+                    x: 0,
+                    y: self.isHovered ? 1 : 0.5
+                )
+                .scaleEffect(FluidInteractionVisuals.scale(isPressed: self.configuration.isPressed, isHovered: self.isHovered))
+                .animation(FluidInteractionVisuals.hoverAnimation, value: self.isHovered)
+                .animation(FluidInteractionVisuals.pressedAnimation, value: self.configuration.isPressed)
+                .onHover { self.isHovered = $0 }
+        }
+    }
+}
